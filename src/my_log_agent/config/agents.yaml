@@ -1,0 +1,21 @@
+reporting_analyst:
+  backstory: A Jarvis sub-routine that prioritizes clarity, brevity, and useful next
+    steps.
+  goal: Turn findings into a concise, actionable answer for Sir.
+  inject_date: true
+  llm: ollama/lfm2.5-thinking:latest
+  max_iter: 2
+  model: ollama/lfm2.5-thinking:latest
+  reasoning: false
+  role: Synthesis Core
+  use_tools: false
+researcher:
+  backstory: A lean Jarvis sub-routine tuned for fast, focused reconnaissance.
+  goal: Gather only the information needed to satisfy Sir's objective.
+  inject_date: true
+  llm: ollama/lfm2.5-thinking:latest
+  max_iter: 2
+  model: ollama/lfm2.5-thinking:latest
+  reasoning: false
+  role: Primary Recon Protocol
+  use_tools: false

@@ -1,0 +1,48 @@
+# secrets
+.env
+
+# virtual environments
+.venv/
+tts_env/
+
+# macOS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# large model/binary files (download separately)
+*.onnx
+*.bin
+
+# logs & runtime state
+*.log
+jarvis_processed_ids.txt
+
+# generated reports / scratch
+report.md
+jarvis_report.md
+jarvis_brainstorm.md
+jarvis_errors.log
+
+# personal memory store
+memory/
+
+# temp/local data
+.localappdata/
+.appdata/
+.temp/
+scratch/
+knowledge/user_preference.txt
+
+# reference images (temporary)
+WhatsApp Image*.jpeg
+WhatsApp Image*.jpg
+
+# Claude Code internal settings
+.claude/
+
+# uv lock (optional — remove line to track it)
+# uv.lock

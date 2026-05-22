@@ -1,0 +1,8 @@
+reporting_task:
+  agent: reporting_analyst
+  description: Synthesize the findings into a concise final answer.
+  expected_output: A brief answer for Sir with key points and any important caveats.
+research_task:
+  agent: researcher
+  description: research the benefits of local LLMs
+  expected_output: Focused findings that directly answer the objective.

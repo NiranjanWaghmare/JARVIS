@@ -1,0 +1,49 @@
+# Jarvis v2 — full dependency list
+# Install: pip install -r requirements.txt
+
+# ── Core ──────────────────────────────────────────────────────────────────────
+pyyaml>=6.0
+python-dotenv>=1.0
+numpy>=1.26
+
+# ── LLM ───────────────────────────────────────────────────────────────────────
+ollama>=0.6.2
+anthropic>=0.30           # Claude API fallback (optional — set claude_api_key in config.yaml)
+
+# ── STT ───────────────────────────────────────────────────────────────────────
+faster-whisper>=1.0.3     # whisper.cpp-backed STT with CoreML/Metal on macOS
+
+# ── VAD ───────────────────────────────────────────────────────────────────────
+webrtcvad-wheels>=2.0.14  # pre-built wheels for all platforms (incl. Apple Silicon)
+
+# ── TTS ───────────────────────────────────────────────────────────────────────
+piper-tts>=1.2.0          # local TTS with ONNX models (primary)
+edge-tts>=7.2.8           # cloud TTS fallback (Microsoft neural voices)
+
+# ── Audio I/O ─────────────────────────────────────────────────────────────────
+sounddevice>=0.5.1
+soundfile>=0.12.1
+
+# ── Wake word ─────────────────────────────────────────────────────────────────
+pvporcupine>=3.0.2        # Porcupine wake word (needs free access key from picovoice.ai)
+pynput>=1.7.7             # global keyboard/mouse events (triple-tap + hotkey)
+
+# ── System tools ──────────────────────────────────────────────────────────────
+psutil>=5.9
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+# (uses stdlib imaplib / smtplib — no extra packages needed)
+
+# ── Overlay (Siri-style HUD) ──────────────────────────────────────────────────
+# macOS native renderer (pyobjc) — optional, tkinter is used as fallback
+pyobjc-framework-Cocoa>=10.0 ; sys_platform == "darwin"
+pyobjc-framework-Quartz>=10.0 ; sys_platform == "darwin"
+
+# ── Existing Jarvis features (kept working) ───────────────────────────────────
+crewai[litellm,tools]>=1.14.3   # multi-agent research crew
+litellm>=1.40                    # HuggingFace cloud model support
+requests>=2.31
+
+# ── Optional ──────────────────────────────────────────────────────────────────
+# whisper-cpp-python      # alternative STT binding for whisper.cpp (CoreML path)
+# kokoro-onnx             # alternative local TTS engine

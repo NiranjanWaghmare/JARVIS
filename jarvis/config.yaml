@@ -1,0 +1,91 @@
+# Jarvis Configuration
+# All paths relative to the project root unless absolute.
+
+llm:
+  chat_model: "llama3.1:8b"            # main chat model — 4.9 GB, smarter responses
+  analysis_model: "llama3.1:8b"       # reasoning/analysis — same model, strong enough
+  # gemma4:latest (9.6 GB, vision+audio) — assign manually for deep-research / CrewAI tasks
+  ollama_base: "http://localhost:11434"
+  temperature: 0.8
+  num_predict: 90
+  keep_alive: "10m"
+  session_context_turns: 6
+  # Claude API fallback for complex queries
+  claude_api_key: ""                   # set to enable cloud fallback
+  claude_model: "claude-sonnet-4-6"
+
+stt:
+  model_size: "small"                  # whisper model: tiny/base/small/medium/large
+  language: "en"
+  device: "auto"                       # auto = CoreML on macOS, else CPU
+  compute_type: "auto"                 # auto/float16/int8
+  beam_size: 3
+  vad_filter: true
+
+tts:
+  engine: "piper"                      # piper | edge-tts | say
+  piper_model: "jarvis/persona/models/en_US-ryan-medium.onnx"
+  piper_config: ""                     # auto-detected if empty
+  edge_tts_voice: "en-GB-RyanNeural"
+  edge_tts_rate: "-5%"
+  silence_trim: true
+  ffmpeg: "ffmpeg"
+
+vad:
+  sample_rate: 16000
+  frame_duration_ms: 30               # webrtcvad frame size (10/20/30 ms)
+  aggressiveness: 2                    # 0-3: higher = more aggressive filtering
+  pause_threshold_sec: 0.6            # silence duration to end utterance
+  max_duration_sec: 15.0
+  pre_roll_frames: 10                  # frames to keep before speech starts
+  energy_floor: 0.003                  # fallback energy threshold if webrtcvad fails
+
+wake:
+  porcupine_access_key: ""            # get free key at https://console.picovoice.ai/
+  wake_word: "jarvis"                  # built-in keyword name
+  sensitivity: 0.5
+  triple_tap_key: "t"                 # key to triple-tap for wake
+  triple_tap_window_sec: 1.0          # window to detect 3 taps
+  hotkey_combo: "<cmd>+<shift>+j"     # Cmd+Shift+J
+
+persona:
+  default: "jarvis"
+  embeddings_dir: "jarvis/persona/personas"
+
+audio:
+  output_device: null                  # null = system default
+  input_device: null
+  sample_rate: 22050
+  blocksize: 1024
+
+email:
+  imap_server: "imap.gmail.com"
+  smtp_server: "smtp.gmail.com"
+  user: ""                             # set in .env: EMAIL_USER
+  password: ""                         # set in .env: EMAIL_PASS
+  owner_email: ""                      # set in .env: OWNER_EMAIL
+  poll_interval_sec: 30
+  processed_ids_file: "jarvis_processed_ids.txt"
+  daily_digest_hour: 8
+  auto_reply: true
+  attach_stats_on_first_email: true
+
+monitor:
+  cpu_alert_pct: 85
+  ram_alert_pct: 90
+  disk_alert_pct: 90
+  temp_alert_c: 80
+  alert_cooldown_min: 20
+  check_interval_cycles: 5            # check every N email poll cycles
+
+tools:
+  confirm_destructive: true           # require verbal OK before shutdown/kill
+
+logging:
+  log_file: "jarvis.log"
+  level: "INFO"
+
+memory:
+  dir: "memory"
+  max_turns: 15
+  max_facts: 100
