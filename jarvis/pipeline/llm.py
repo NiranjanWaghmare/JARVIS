@@ -11,14 +11,22 @@ import json
 import logging
 import os
 import re
-from typing import AsyncIterator, TYPE_CHECKING
+from typing import AsyncIterator, Iterator, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from jarvis.persona.loader import PersonaManager
 
 log = logging.getLogger("jarvis.llm")
 
-_TOOL_RE = re.compile(r'\{[^{}]*"tool"\s*:\s*"[^"]+\"[^{}]*\}', re.DOTALL)
+# Flat tool call format: {"tool": "name", "param": "value", ...}
+# Flat (no nested objects) so the regex can match without recursive parsing.
+_TOOL_RE = re.compile(r'\{"tool"\s*:\s*"[^"]+?"(?:\s*,\s*"[^"]+?"\s*:\s*"[^"]*?")*\s*\}', re.DOTALL)
+
+# Lines the LLM narrates about its own actions — strip from spoken output.
+_NARRATION_RE = re.compile(
+    r'(?:^|\n)?[ \t]*(?:opening|navigating to|loading|launching|going to)\s+https?://[^\s]+\.?\s*',
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 class LLMCore:
@@ -66,10 +74,14 @@ class LLMCore:
             # Emit safe prefix (everything before a potential opening brace)
             safe, buffer = self._split_safe(buffer)
             if safe:
-                yield safe
+                safe = _NARRATION_RE.sub("", safe)
+                if safe:
+                    yield safe
 
         if buffer.strip():
-            yield buffer
+            cleaned = _NARRATION_RE.sub("", buffer)
+            if cleaned.strip():
+                yield cleaned
 
     async def generate(self, prompt: str, model: str | None = None, num_predict: int | None = None) -> str:
         """Non-streaming generation for internal use."""
@@ -171,14 +183,15 @@ class LLMCore:
         try:
             call = json.loads(json_str)
             name = call.get("tool", "")
-            args = call.get("args", {})
+            # Flat format: every key except "tool" is an arg
+            args = {k: v for k, v in call.items() if k != "tool"}
         except json.JSONDecodeError:
             return None
 
         fn = self._tools.get(name)
         if fn is None:
             log.warning("Tool not registered: %s", name)
-            return f"[Tool '{name}' not available]"
+            return None  # silent — don't speak internal tool errors
 
         try:
             if asyncio.iscoroutinefunction(fn):
@@ -188,7 +201,7 @@ class LLMCore:
             return str(result) if result is not None else None
         except Exception as exc:
             log.error("Tool %s error: %s", name, exc)
-            return f"[Tool error: {exc}]"
+            return None  # silent — tool errors are logged, not spoken
 
     # ── helpers ────────────────────────────────────────────────────────────────
     def _build_messages(self, text: str, persona: "PersonaManager") -> list[dict]:
@@ -198,9 +211,13 @@ class LLMCore:
 
         system_content = system
         if profile:
-            system_content += f"\n\n[User Profile]\n{profile}"
+            system_content += (
+                "\n\n[What I know about this user — use this when relevant, "
+                "especially if they ask about past discussions or preferences]\n"
+                + profile
+            )
         if ctx:
-            system_content += f"\n\n[Recent Session]\n{ctx}"
+            system_content += f"\n\n[This session so far]\n{ctx}"
 
         return [
             {"role": "system", "content": system_content},

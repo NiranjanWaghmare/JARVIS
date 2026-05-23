@@ -2,8 +2,8 @@
 # All paths relative to the project root unless absolute.
 
 llm:
-  chat_model: "llama3.1:8b"            # main chat model — 4.9 GB, smarter responses
-  analysis_model: "llama3.1:8b"       # reasoning/analysis — same model, strong enough
+  chat_model: "qwen2.5:3b"             # main chat model — 1.9 GB, faster + better instruction following
+  analysis_model: "lfm2.5-thinking:latest"  # reasoning/critique — thinking model, runs in background
   # gemma4:latest (9.6 GB, vision+audio) — assign manually for deep-research / CrewAI tasks
   ollama_base: "http://localhost:11434"
   temperature: 0.8
@@ -15,7 +15,7 @@ llm:
   claude_model: "claude-sonnet-4-6"
 
 stt:
-  model_size: "small"                  # whisper model: tiny/base/small/medium/large
+  model_size: "medium"                 # whisper model: tiny/base/small/medium/large
   language: "en"
   device: "auto"                       # auto = CoreML on macOS, else CPU
   compute_type: "auto"                 # auto/float16/int8
@@ -34,8 +34,8 @@ tts:
 vad:
   sample_rate: 16000
   frame_duration_ms: 30               # webrtcvad frame size (10/20/30 ms)
-  aggressiveness: 2                    # 0-3: higher = more aggressive filtering
-  pause_threshold_sec: 0.6            # silence duration to end utterance
+  aggressiveness: 1                    # 0-3: 1 = light filtering, avoids eating real speech
+  pause_threshold_sec: 1.0            # silence duration to end utterance
   max_duration_sec: 15.0
   pre_roll_frames: 10                  # frames to keep before speech starts
   energy_floor: 0.003                  # fallback energy threshold if webrtcvad fails

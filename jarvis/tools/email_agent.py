@@ -155,6 +155,9 @@ class EmailAgent:
     # ── SMTP internals ────────────────────────────────────────────────────────
     def _send_smtp(self, recipient: str, subject: str, body: str,
                    reply_to_id: str | None = None, is_chat: bool = True):
+        if not recipient or "@" not in recipient:
+            log.error("SMTP aborted: invalid recipient %r", recipient)
+            return
         msg = MIMEMultipart()
         msg["From"]    = self.user
         msg["To"]      = recipient

@@ -10,6 +10,7 @@ Run modes:
 
 import asyncio
 import logging
+import random
 import re
 import signal
 import sys
@@ -47,9 +48,12 @@ from jarvis.pipeline.chunker import SentenceChunker
 from jarvis.pipeline.tts import TTSEngine
 from jarvis.pipeline.audio import AudioPlayer
 from jarvis.persona.loader import PersonaManager
-from jarvis.tools.system import SystemTools
+from jarvis.tools.system import SystemTools, get_system_stats
 from jarvis.tools.email_agent import EmailAgent
+from jarvis.agents.browser_agent import BrowserAgent, BROWSER_TRIGGERS
+from jarvis.agents.critique_agent import background_tasks as _bg_tasks, RUN_EVERY_N_TURNS
 from jarvis.overlay.overlay import OverlayController, IDLE, SESSION, LISTENING, THINKING, SPEAKING
+from jarvis.tools.audio_device import AudioDeviceManager, patch_vad_for_device_switching
 
 
 # ── voice pipeline ─────────────────────────────────────────────────────────────
@@ -150,8 +154,10 @@ async def process_turn(
     player: AudioPlayer,
     email_agent: EmailAgent | None,
     sys_tools: SystemTools,
+    browser: BrowserAgent | None = None,
     voice_out: bool,
     overlay: OverlayController | None = None,
+    confirm_cb=None,
 ) -> str:
     text = text.strip()
     if not text:
@@ -190,14 +196,36 @@ async def process_turn(
                 player.play(wav)
         return reply
 
-    # System tool dispatch
-    tool_reply = await sys_tools.dispatch(text, confirm_cb=_confirm_verbal)
+    # System tool dispatch — pass recent session context so agents can resolve "take me there" etc.
+    tool_reply = await sys_tools.dispatch(
+        text,
+        confirm_cb=confirm_cb or _confirm_verbal,
+        memory_context=persona.memory.get_context(3),
+    )
     if tool_reply is not None:
-        if voice_out:
+        if voice_out and tool_reply:
             wav = await asyncio.get_event_loop().run_in_executor(None, tts.synthesize, tool_reply, persona)
             if wav:
                 player.play(wav)
         return tool_reply
+
+    # Browser interaction — detected before hitting the main LLM
+    if browser and BROWSER_TRIGGERS.search(text):
+        if overlay:
+            overlay.set_state(THINKING)
+        context = persona.memory.get_context(3)
+        reply = await browser.execute_task(text, context, llm)
+        if reply:
+            print(f"\n[{persona.display}] {reply}\n")
+            if voice_out:
+                if overlay:
+                    overlay.set_state(SPEAKING)
+                wav = await asyncio.get_event_loop().run_in_executor(None, tts.synthesize, reply, persona)
+                if wav:
+                    await asyncio.get_event_loop().run_in_executor(None, player.play, wav)
+        persona.memory.add_turn(text, reply)
+        asyncio.create_task(_bg_tasks(text, reply, llm, persona))
+        return reply
 
     # Main LLM path
     if voice_out:
@@ -210,6 +238,12 @@ async def process_turn(
         print(f"\n[{persona.display}] {reply}\n")
 
     persona.memory.add_turn(text, reply)
+    # Background tasks fire every Nth turn to avoid Ollama contention.
+    # They run sequentially inside _bg_tasks, delayed by STARTUP_DELAY_SEC.
+    global _turn_counter
+    _turn_counter += 1
+    if _turn_counter % RUN_EVERY_N_TURNS == 0:
+        asyncio.create_task(_bg_tasks(text, reply, llm, persona))
     return reply
 
 
@@ -248,12 +282,50 @@ def _stop_thinking_sound():
     _thinking_stop.set()
 
 
+_turn_counter: int = 0   # throttle background LLM tasks to every Nth turn
+
+
 async def _confirm_verbal(prompt: str) -> bool:
-    """Simple async confirmation — prints prompt and reads one line."""
+    """Text-mode confirmation — reads from stdin."""
     print(f"\n[CONFIRM] {prompt} (yes/no): ", end="", flush=True)
     loop = asyncio.get_event_loop()
     answer = await loop.run_in_executor(None, input, "")
     return answer.strip().lower() in {"yes", "y", "ok", "confirm", "sure"}
+
+
+_YES = {"yes", "yeah", "yep", "yup", "sure", "ok", "okay", "confirm",
+        "do it", "go ahead", "go for it", "affirmative"}
+_NO  = {"no", "nope", "cancel", "stop", "don't", "abort", "negative"}
+
+
+def _make_voice_confirm(tts, player, vad, stt, persona, overlay=None):
+    """Returns a voice confirmation callback that speaks the prompt and listens for yes/no."""
+    async def _voice_confirm(prompt: str) -> bool:
+        loop = asyncio.get_event_loop()
+        action = prompt.rstrip("?").strip().lower()
+        question = f"Should I {action}? Can you please confirm, Sir."
+        print(f"\n[CONFIRM] {question}")
+        wav = await loop.run_in_executor(None, tts.synthesize, question, persona)
+        if wav:
+            await loop.run_in_executor(None, player.play, wav)
+        if overlay:
+            overlay.set_state(LISTENING)
+        audio = await loop.run_in_executor(None, vad.record)
+        if overlay:
+            overlay.set_state(THINKING)
+        if audio is None or len(audio) == 0:
+            return False
+        text = await loop.run_in_executor(None, stt.transcribe, audio)
+        if not text:
+            return False
+        words = set(text.lower().split())
+        print(f"[CONFIRM heard] {text}")
+        if words & _YES:
+            return True
+        if words & _NO:
+            return False
+        return False   # unrecognised — treat as cancel
+    return _voice_confirm
 
 
 # ── wake-trigger listener ──────────────────────────────────────────────────────
@@ -326,6 +398,7 @@ async def voice_loop(
     stt: STTEngine,
     sys_tools: SystemTools,
     email_agent: EmailAgent | None,
+    browser: BrowserAgent | None = None,
     overlay: OverlayController | None = None,
 ):
     wake_event = asyncio.Event()
@@ -375,8 +448,23 @@ async def voice_loop(
             await wake_event.wait()
             wake_event.clear()
 
-            # Ping to confirm Jarvis heard the wake command
+            # Ping + verbal acknowledgment so the wake feels connected
             _play_sound_fx(_PING_WAV)
+            _WAKE_ACKS = [
+                "Yes, sir?",
+                "How can I help?",
+                "At your service.",
+                "I'm listening.",
+                "What can I do for you?",
+                "Go ahead, sir.",
+            ]
+            ack = random.choice(_WAKE_ACKS)
+            print(f"[{persona.display}] {ack}")
+            if overlay:
+                overlay.set_state(SPEAKING)
+            _ack_wav = await loop.run_in_executor(None, tts.synthesize, ack, persona)
+            if _ack_wav:
+                await loop.run_in_executor(None, player.play, _ack_wav)
 
             # Flush stray keystrokes (e.g. 'ttt' from triple-tap) from stdin
             try:
@@ -398,20 +486,17 @@ async def voice_loop(
             print("[Listening…]")
             audio = await loop.run_in_executor(None, vad.record)
             if overlay:
-                overlay.set_state(IDLE)
+                overlay.set_state(THINKING)  # stay visible while STT transcribes
 
             if audio is None or len(audio) == 0:
-                if in_session:
-                    # Silence during session — keep waiting without requiring wake word
-                    continue
                 print("[No audio captured]")
                 continue
 
             text = await loop.run_in_executor(None, stt.transcribe, audio)
             if not text:
-                if in_session:
-                    continue
-                print("[Could not understand speech]")
+                print("[Could not understand — please repeat]")
+                if overlay:
+                    overlay.set_state(SESSION if in_session else IDLE)
                 continue
             print(f"[Heard] {text}")
 
@@ -458,14 +543,16 @@ async def voice_loop(
             player=player,
             email_agent=email_agent,
             sys_tools=sys_tools,
+            browser=browser,
             voice_out=True,
             overlay=overlay,
+            confirm_cb=_make_voice_confirm(tts, player, vad, stt, persona, overlay),
         )
         # After reply, show session-ready indicator while waiting for next input
         if overlay:
             overlay.set_state(SESSION)
-        # Brief cooldown so the mic doesn't pick up speaker echo
-        await asyncio.sleep(0.3)
+        # Cooldown so the mic doesn't pick up speaker echo from Jarvis's reply
+        await asyncio.sleep(0.8)
 
 
 # ── text-only interactive loop ─────────────────────────────────────────────────
@@ -476,6 +563,7 @@ async def text_loop(
     player: AudioPlayer,
     sys_tools: SystemTools,
     email_agent: EmailAgent | None,
+    browser: BrowserAgent | None = None,
 ):
     loop = asyncio.get_event_loop()
     print(f"\n--- {persona.display.upper()} ONLINE ---")
@@ -499,6 +587,7 @@ async def text_loop(
             player=player,
             email_agent=email_agent,
             sys_tools=sys_tools,
+            browser=browser,
             voice_out=False,
         )
 
@@ -518,7 +607,7 @@ async def email_daemon(
     stats = get_system_stats()
     startup_body = f"Jarvis online.\n\nSystem Status:\n{stats}"
     await asyncio.get_event_loop().run_in_executor(
-        None, email_agent.send, CFG["email"]["owner_email"], "Jarvis Startup", startup_body
+        None, email_agent.send, email_agent.owner_email, "Jarvis Startup", startup_body
     )
 
     while True:
@@ -572,6 +661,23 @@ async def _main():
     player  = AudioPlayer(CFG)
     sys_tools = SystemTools(CFG)
 
+    # Give SystemTools access to LLM so agents can do intelligent resolution
+    sys_tools.set_llm(llm)
+
+    # Wire system tools into LLM's JSON tool-call registry.
+    # NOTE: open_url is intentionally NOT registered here — the LLM must never
+    # proactively open websites. URL opening only happens via the dispatch layer
+    # when the user explicitly requests it ("take me there", "open that").
+    llm.register_tool("open_app", sys_tools.open_app)
+    llm.register_tool("system_sleep", sys_tools.system_sleep)
+    llm.register_tool("system_shutdown", sys_tools.system_shutdown)
+    llm.register_tool("system_restart", sys_tools.system_restart)
+    llm.register_tool("get_stats", lambda: get_system_stats())
+    llm.register_tool("set_reminder", sys_tools.set_reminder)
+
+    # Browser agent — lazy-started on first use
+    browser = BrowserAgent()
+
     # Email agent (always available for process_turn)
     email_agent: EmailAgent | None = None
     try:
@@ -595,14 +701,28 @@ async def _main():
             _t.Thread(target=stt._load, daemon=True, name="whisper-prewarm").start()
             overlay = OverlayController(CFG)
             overlay.start()
-            await voice_loop(persona, llm, tts, player, vad, stt, sys_tools, email_agent, overlay=overlay)
+            _overlay_ref[0] = overlay
+            # Patch VAD for runtime device switching, then expose AudioDeviceManager
+            patch_vad_for_device_switching(vad)
+            audio_mgr = AudioDeviceManager(vad, player)
+            sys_tools.set_audio_manager(audio_mgr)
+            await voice_loop(persona, llm, tts, player, vad, stt, sys_tools, email_agent, browser=browser, overlay=overlay)
             overlay.stop()
+            _overlay_ref[0] = None
         except ImportError as exc:
             log.warning("Voice deps missing (%s) — falling back to text mode.", exc)
             mode_text = True
+        finally:
+            if browser.is_open:
+                await browser.stop()
 
     if mode_text or not mode_voice:
-        await text_loop(persona, llm, tts, player, sys_tools, email_agent)
+        await text_loop(persona, llm, tts, player, sys_tools, email_agent, browser=browser)
+        if browser.is_open:
+            await browser.stop()
+
+
+_overlay_ref: list = [None]  # set in _main() so _shutdown can clean it up
 
 
 def main():
@@ -613,6 +733,14 @@ def main():
     asyncio.set_event_loop(loop)
     _called = [0]
 
+    def _kill_overlay():
+        ov = _overlay_ref[0]
+        if ov is not None:
+            try:
+                ov.stop()
+            except Exception:
+                pass
+
     def _shutdown(sig, frame):
         _called[0] += 1
         if _called[0] == 1:
@@ -620,10 +748,14 @@ def main():
             for task in asyncio.all_tasks(loop):
                 task.cancel()
             loop.call_soon_threadsafe(loop.stop)
+            def _force_exit():
+                _kill_overlay()
+                os._exit(0)
             # Force-exit after 1.5 s if still alive (audio threads can block cleanup)
-            threading.Timer(1.5, lambda: os._exit(0)).start()
+            threading.Timer(1.5, _force_exit).start()
         else:
             log.info("Force quit.")
+            _kill_overlay()
             os._exit(0)
 
     signal.signal(signal.SIGINT, _shutdown)

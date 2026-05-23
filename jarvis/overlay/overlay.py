@@ -18,15 +18,34 @@ far more reliable than queue.empty() which lies across process boundaries.
 
 import logging
 import multiprocessing
+import os
+import signal
 import time
+from pathlib import Path
 
 log = logging.getLogger("jarvis.overlay")
+
+_PID_FILE = Path("/tmp/jarvis_overlay.pid")
 
 IDLE      = "idle"
 SESSION   = "session"
 LISTENING = "listening"
 THINKING  = "thinking"
 SPEAKING  = "speaking"
+
+
+def _kill_existing_overlay():
+    """Kill any overlay process left over from a previous run."""
+    if not _PID_FILE.exists():
+        return
+    try:
+        pid = int(_PID_FILE.read_text().strip())
+        os.kill(pid, signal.SIGKILL)
+        log.info("Killed stale overlay process (pid=%d).", pid)
+    except (ProcessLookupError, ValueError):
+        pass  # already dead or bad PID
+    finally:
+        _PID_FILE.unlink(missing_ok=True)
 
 
 # ── Controller (lives in the main Jarvis process) ─────────────────────────────
@@ -36,12 +55,14 @@ class OverlayController:
         self._proc: multiprocessing.Process | None = None
 
     def start(self):
+        _kill_existing_overlay()
         self._proc = multiprocessing.Process(
             target=_run_overlay_process,
             args=(self._queue,),
             daemon=True,
         )
         self._proc.start()
+        _PID_FILE.write_text(str(self._proc.pid))
         log.info("Overlay process started (pid=%d).", self._proc.pid)
 
     def set_state(self, state: str):
@@ -54,6 +75,7 @@ class OverlayController:
             self._proc.join(timeout=2)
             if self._proc.is_alive():
                 self._proc.kill()
+        _PID_FILE.unlink(missing_ok=True)
 
 
 # ── Child-process entry point ──────────────────────────────────────────────────
@@ -95,10 +117,11 @@ def _run_cocoa_overlay(queue: multiprocessing.Queue):
     app.activateIgnoringOtherApps_(True)
 
     screen  = NSScreen.mainScreen().frame()
-    W       = 260                         # window width
-    H       = 120                         # window height (only top portion is visible)
+    visible = NSScreen.mainScreen().visibleFrame()   # excludes menu bar + Dock
+    W       = 400                         # window width
+    H       = 150                         # taller so orb clears the Dock
     x       = (screen.size.width - W) / 2
-    y       = 0                           # window bottom sits at screen bottom
+    y       = visible.origin.y            # window bottom sits at top of Dock
 
     win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
         ((x, y), (W, H)),
@@ -142,7 +165,7 @@ def _run_cocoa_overlay(queue: multiprocessing.Queue):
     # Siri-style: the orb is centred near the BOTTOM of the window so only the
     # upper portion peeks above the screen edge (y=0 in Cocoa = screen bottom).
     CX = W / 2.0
-    CY = 8.0          # orb centre 8 px above window bottom → mostly below screen
+    CY = 10.0         # orb centre near window bottom; window y sits at top of Dock
 
     class OrbView(NSView):
         def drawRect_(self, rect):
@@ -152,15 +175,22 @@ def _run_cocoa_overlay(queue: multiprocessing.Queue):
 
         def isOpaque(self): return False
 
+        def tickTimer_(self, _timer):
+            if quit_flag[0]:
+                app.terminate_(None)
+                return
+            phase_box[0] += 0.04
+            if state_box[0] == IDLE:
+                win.orderOut_(None)   # hide window entirely when idle
+            else:
+                win.orderFrontRegardless()
+                self.setNeedsDisplay_(True)
+
+        tickTimer_ = objc.selector(tickTimer_, signature=b"v@:@")
+
     def _draw_orb(cx, cy, phase, state):
-        # ── IDLE: tiny pulsing dot ─────────────────────────────────────────────
+        # ── IDLE: hidden (window is ordered out) ──────────────────────────────
         if state == IDLE:
-            r = 9 + 3 * math.sin(phase * 0.6)
-            a = 0.50 + 0.22 * math.sin(phase * 0.4)
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.6, 1.0, a).setFill()
-            NSBezierPath.bezierPathWithOvalInRect_(
-                ((cx - r, cy - r), (r * 2, r * 2))
-            ).fill()
             return
 
         # ── Orb radius (pulsing per state) ────────────────────────────────────
@@ -220,9 +250,9 @@ def _run_cocoa_overlay(queue: multiprocessing.Queue):
         ctx.saveGraphicsState()
         clip.setClip()
 
-        # Deep blue base
+        # Deep blue base — 0.72 alpha keeps it translucent
         NSColor.colorWithCalibratedRed_green_blue_alpha_(
-            0.04, 0.17, 0.88, 1.0).setFill()
+            0.04, 0.17, 0.88, 0.72).setFill()
         NSBezierPath.bezierPathWithRect_(
             ((cx - R - 2, cy - R - 2), (R * 2 + 4, R * 2 + 4))
         ).fill()
@@ -269,18 +299,11 @@ def _run_cocoa_overlay(queue: multiprocessing.Queue):
 
     view = OrbView.alloc().initWithFrame_(((0, 0), (W, H)))
     win.setContentView_(view)
+    app.finishLaunching()
     win.orderFrontRegardless()
 
-    def _tick(_timer):
-        if quit_flag[0]:
-            app.terminate_(None)
-            return
-        phase_box[0] += 0.04
-        win.orderFrontRegardless()
-        view.setNeedsDisplay_(True)
-
     NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-        0.033, view, objc.selector(_tick, signature=b"v@:@"), None, True
+        0.033, view, view.tickTimer_, None, True
     )
     app.run()
 
@@ -356,12 +379,11 @@ def _run_tkinter_overlay(queue: multiprocessing.Queue):
         cx, cy = CX, CY
 
         if state == IDLE:
-            r = int(9 + 3 * math.sin(phase * 0.6))
-            a = 0.50 + 0.22 * math.sin(phase * 0.4)
-            canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
-                               fill=_hex(0.3 * a, 0.6 * a, a), outline="")
-            root.after(33, _animate)
+            root.withdraw()           # hide window entirely when idle
+            root.after(100, _animate)
             return
+
+        root.deiconify()
 
         if state == LISTENING:
             R = int(88 + 5 * math.sin(phase * 1.6))
