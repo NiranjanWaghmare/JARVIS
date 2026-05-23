@@ -324,14 +324,20 @@ The first audio chunk plays as soon as the first sentence is generated — you d
 | Say this | Effect |
 |----------|--------|
 | `stewie mode` | Switch to Stewie Griffin |
+| `dobby mode` | Switch to Dobby the house-elf |
 | `jarvis mode` | Switch back to Jarvis |
 | `what persona` / `which mode` | Ask who is active |
 
 Stewie's mood engine:
-- Starts **happy** (warm, slightly magnanimous)
+- Starts **happy** (smug, magnanimous)
 - Flips to **annoyed** if you insult or demean him
 - Flips to **exasperated** if you ask something very short or banal
 - Returns to **happy** if you compliment him
+
+Dobby:
+- Loyal, enthusiastic, refers to himself in third person
+- Calls you "Master" — deeply eager to help
+- No mood engine — Dobby is always full of love and energy
 
 ---
 
