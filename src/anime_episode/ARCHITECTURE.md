@@ -152,12 +152,32 @@ curl -s localhost:8088/v1/health/tts
 - GPT-SoVITS `POST /tts` — dialogue WAV per shot
 - `dialogue_s2v.json` — keyframe + WAV → lip-synced talking clip
 
+## Queue + parallel workers
+
+```bash
+export ANIME_QUEUE_BACKEND=redis
+export ANIME_REDIS_URL=redis://localhost:6379/0
+export ANIME_WORKER_CONCURRENCY=4
+export ANIME_WORKER_CHAIN=true
+export ANIME_MUX_DIALOGUE_AUDIO=true
+python -m anime_episode.worker_main
+```
+
+DAG chaining (default):
+`PLAN_EPISODE → BUILD_CHARACTERS → RENDER_SHOT×N (parallel) → ASSEMBLE_EPISODE`
+
+- Episode JSON updates use a file lock so parallel shot workers don't clobber state
+- Assemble is claimed once via `.assemble.claimed`
+- Assemble muxes TTS WAV onto dialogue clips (ffmpeg) before concat
+- `GET /v1/health/queue` reports backend + depth
+
+Compose: `docker-compose.anime.yml` defaults to Redis + worker concurrency 4.
+
 ## Extending further
 
 1. Replace bundled Animate/S2V skeletons with your full official ComfyUI API exports
-2. Switch `ANIME_QUEUE_BACKEND=redis` once Redis adapter is implemented
-3. Scale `render_shot` workers horizontally (one GPU each)
-4. Mux TTS audio into final S2V clips during assemble if SaveVideo is silent
+2. Scale worker *processes* (one GPU each) via compose `deploy.replicas`
+3. Persist jobs in Postgres instead of JSON files when multi-host
 
 ## Design rules
 

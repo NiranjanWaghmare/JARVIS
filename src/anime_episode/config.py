@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     queue_backend: str = "memory"  # memory | redis
     worker_concurrency: int = 1
+    worker_chain: bool = True  # auto-enqueue plan→chars→shots→assemble
+    mux_dialogue_audio: bool = True  # ffmpeg mux TTS into dialogue clips before stitch
 
     # Model / tool endpoints
     llm_model: str = "openai/gpt-4o-mini"

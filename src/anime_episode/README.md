@@ -38,6 +38,16 @@ curl -s localhost:8088/v1/health/tts
 
 Templates: keyframe, motion I2V, Wan-Animate, Wan-S2V — see `workflows/README.md`.
 
+## Async workers (Redis)
+
+```bash
+export ANIME_QUEUE_BACKEND=redis
+export ANIME_REDIS_URL=redis://localhost:6379/0
+export ANIME_WORKER_CONCURRENCY=4
+python -m anime_episode.worker_main
+# POST /v1/episodes/{id}/kickoff  {"sync":false}  → plan chains to assemble
+```
+
 ## Tests
 
 ```bash

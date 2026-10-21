@@ -81,9 +81,14 @@ class PipelineRunner:
 
     async def render_shot(self, episode_id: str, shot_id: str) -> Shot:
         episode = self.store.load_episode(episode_id)
-        episode.status = EpisodeStatus.RENDERING
-        shot = episode.shot_by_id(shot_id)
+        shot = episode.shot_by_id(shot_id).model_copy(deep=True)
         ctx = self._ctx(episode_id)
+        keyframe_artifact: Artifact | None = None
+
+        self.store.mutate_episode(
+            episode_id,
+            lambda ep: setattr(ep, "status", EpisodeStatus.RENDERING),
+        )
 
         try:
             for edge in stages_for_shot(shot.kind, shot.needs_animate):
@@ -94,8 +99,8 @@ class PipelineRunner:
                         ctx,
                     )
                     shot.artifacts["keyframe"] = kf.path
-                    episode.artifacts.append(
-                        Artifact(kind=ArtifactKind.KEYFRAME, path=kf.path, shot_id=shot.id)
+                    keyframe_artifact = Artifact(
+                        kind=ArtifactKind.KEYFRAME, path=kf.path, shot_id=shot.id
                     )
                 elif edge.stage == ShotStage.MOTION:
                     motion = await self.motion.run(
@@ -147,15 +152,27 @@ class PipelineRunner:
             shot.stage = ShotStage.FAILED
             shot.error = str(exc)
             logger.exception("shot %s failed", shot_id)
-            episode.error = f"shot {shot_id}: {exc}"
-            episode.status = EpisodeStatus.FAILED
-            self._write_shot(episode, shot)
-            self.store.save_episode(episode)
+
+            def _fail(ep: Episode) -> None:
+                for i, existing in enumerate(ep.shots):
+                    if existing.id == shot.id:
+                        ep.shots[i] = shot
+                        break
+                ep.error = f"shot {shot_id}: {exc}"
+                ep.status = EpisodeStatus.FAILED
+
+            self.store.mutate_episode(episode_id, _fail)
             raise
 
-        self._write_shot(episode, shot)
-        episode.touch()
-        self.store.save_episode(episode)
+        def _ok(ep: Episode) -> None:
+            for i, existing in enumerate(ep.shots):
+                if existing.id == shot.id:
+                    ep.shots[i] = shot
+                    break
+            if keyframe_artifact is not None:
+                ep.artifacts.append(keyframe_artifact)
+
+        self.store.mutate_episode(episode_id, _ok)
         return shot
 
     async def assemble(self, episode_id: str) -> str:
@@ -164,20 +181,23 @@ class PipelineRunner:
         if unfinished:
             raise RuntimeError(f"shots not done: {unfinished[:8]}")
 
-        episode.status = EpisodeStatus.ASSEMBLING
-        self.store.save_episode(episode)
+        self.store.mutate_episode(
+            episode_id,
+            lambda ep: setattr(ep, "status", EpisodeStatus.ASSEMBLING),
+        )
+        episode = self.store.load_episode(episode_id)
 
         out = await self.assemble_tool.run(
             AssembleInput(episode=episode),
             self._ctx(episode_id),
         )
-        episode.final_video_path = out.path
-        episode.artifacts.append(
-            Artifact(kind=ArtifactKind.FINAL_EPISODE, path=out.path)
-        )
-        episode.status = EpisodeStatus.COMPLETED
-        episode.touch()
-        self.store.save_episode(episode)
+
+        def _complete(ep: Episode) -> None:
+            ep.final_video_path = out.path
+            ep.artifacts.append(Artifact(kind=ArtifactKind.FINAL_EPISODE, path=out.path))
+            ep.status = EpisodeStatus.COMPLETED
+
+        self.store.mutate_episode(episode_id, _complete)
         return out.path
 
     async def kickoff_local(self, episode_id: str) -> Episode:
@@ -189,13 +209,6 @@ class PipelineRunner:
             await self.render_shot(episode_id, shot.id)
         await self.assemble(episode_id)
         return self.store.load_episode(episode_id)
-
-    def _write_shot(self, episode: Episode, shot: Shot) -> None:
-        for i, existing in enumerate(episode.shots):
-            if existing.id == shot.id:
-                episode.shots[i] = shot
-                return
-        raise KeyError(shot.id)
 
 
 def ensure_workspace(episode_id: str, store: ArtifactStore | None = None) -> Path:

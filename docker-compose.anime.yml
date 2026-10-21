@@ -15,7 +15,9 @@ services:
     environment:
       ANIME_DRY_RUN: "true"
       ANIME_REDIS_URL: redis://redis:6379/0
-      ANIME_QUEUE_BACKEND: memory
+      ANIME_QUEUE_BACKEND: redis
+      ANIME_WORKER_CHAIN: "true"
+      ANIME_MUX_DIALOGUE_AUDIO: "true"
       ANIME_ARTIFACT_ROOT: /data/artifacts
       ANIME_COMFYUI_BASE_URL: ${ANIME_COMFYUI_BASE_URL:-http://host.docker.internal:8188}
       ANIME_TTS_BASE_URL: ${ANIME_TTS_BASE_URL:-http://host.docker.internal:9880}
@@ -34,7 +36,10 @@ services:
     environment:
       ANIME_DRY_RUN: "true"
       ANIME_REDIS_URL: redis://redis:6379/0
-      ANIME_QUEUE_BACKEND: memory
+      ANIME_QUEUE_BACKEND: redis
+      ANIME_WORKER_CONCURRENCY: ${ANIME_WORKER_CONCURRENCY:-4}
+      ANIME_WORKER_CHAIN: "true"
+      ANIME_MUX_DIALOGUE_AUDIO: "true"
       ANIME_ARTIFACT_ROOT: /data/artifacts
       ANIME_COMFYUI_BASE_URL: ${ANIME_COMFYUI_BASE_URL:-http://host.docker.internal:8188}
       ANIME_TTS_BASE_URL: ${ANIME_TTS_BASE_URL:-http://host.docker.internal:9880}
@@ -43,6 +48,8 @@ services:
     depends_on:
       - redis
       - api
+    deploy:
+      replicas: 1
 
 volumes:
   anime_artifacts:

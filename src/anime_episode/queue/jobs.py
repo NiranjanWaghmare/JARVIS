@@ -1,4 +1,4 @@
-"""Job queue abstractions — memory now, Redis-ready later."""
+"""Job queue abstractions — memory or Redis."""
 
 from __future__ import annotations
 
@@ -56,9 +56,18 @@ class MemoryJobQueue:
     async def get(self, job_id: str) -> JobRecord:
         return self.store.load_job(job_id)
 
+    async def depth(self) -> int:
+        return len(self._q)
 
-def build_queue(store: ArtifactStore, backend: str = "memory") -> MemoryJobQueue:
-    if backend != "memory":
-        # Redis ARQ / RQ adapter can replace this without changing orchestrator.
-        raise NotImplementedError(f"queue backend '{backend}' not implemented yet; use memory")
-    return MemoryJobQueue(store)
+
+def build_queue(store: ArtifactStore, backend: str = "memory", redis_url: str | None = None):
+    backend = (backend or "memory").lower()
+    if backend == "memory":
+        return MemoryJobQueue(store)
+    if backend == "redis":
+        from anime_episode.config import get_settings
+        from anime_episode.queue.redis_queue import RedisJobQueue
+
+        url = redis_url or get_settings().redis_url
+        return RedisJobQueue(store, url)
+    raise ValueError(f"unknown queue backend: {backend!r} (use memory|redis)")

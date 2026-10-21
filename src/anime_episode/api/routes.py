@@ -139,25 +139,24 @@ async def kickoff_episode(episode_id: str, body: KickoffRequest) -> KickoffRespo
             status=episode.status,
         )
 
-    job_ids: list[str] = []
-    plan_job = JobRecord(type=JobType.PLAN_EPISODE, episode_id=episode_id)
+    # Enqueue plan only; Worker chain auto-enqueues characters → parallel shots → assemble.
+    plan_job = JobRecord(
+        type=JobType.PLAN_EPISODE,
+        episode_id=episode_id,
+        payload={"chain": True},
+    )
     await queue.enqueue(plan_job)
-    job_ids.append(plan_job.id)
-
-    # Character + shot + assemble jobs are chained by a coordinator worker in
-    # production; for the architecture scaffold we enqueue a bootstrap plan job
-    # and expose /kickoff/continue for the remaining DAG after planning.
     return KickoffResponse(
         episode_id=episode_id,
         mode="async",
-        job_ids=job_ids,
+        job_ids=[plan_job.id],
         status=episode.status,
     )
 
 
 @router.post("/episodes/{episode_id}/continue", response_model=KickoffResponse)
 async def continue_after_plan(episode_id: str) -> KickoffResponse:
-    """Enqueue character build, all shot renders, then assemble (post-plan)."""
+    """Manual DAG step: enqueue characters + shots (assemble chains when shots finish)."""
     store = get_store()
     queue = get_queue()
     try:
@@ -168,19 +167,13 @@ async def continue_after_plan(episode_id: str) -> KickoffResponse:
         raise HTTPException(status_code=400, detail="episode has no shots; run plan first")
 
     job_ids: list[str] = []
-    char_job = JobRecord(type=JobType.BUILD_CHARACTERS, episode_id=episode_id)
+    char_job = JobRecord(
+        type=JobType.BUILD_CHARACTERS,
+        episode_id=episode_id,
+        payload={"chain": True},
+    )
     await queue.enqueue(char_job)
     job_ids.append(char_job.id)
-
-    for shot in episode.shots:
-        job = JobRecord(type=JobType.RENDER_SHOT, episode_id=episode_id, shot_id=shot.id)
-        await queue.enqueue(job)
-        job_ids.append(job.id)
-
-    assemble = JobRecord(type=JobType.ASSEMBLE_EPISODE, episode_id=episode_id)
-    await queue.enqueue(assemble)
-    job_ids.append(assemble.id)
-
     return KickoffResponse(
         episode_id=episode_id,
         mode="async",
@@ -210,26 +203,37 @@ async def get_job(job_id: str) -> JobStatusResponse:
 @router.post("/worker/tick")
 async def worker_tick(max_jobs: int = 1) -> dict:
     """Process up to N queued jobs in-process (dev helper; use Worker.run_forever in prod)."""
-    worker = Worker(queue=get_queue(), store=get_store(), runner=get_runner())
+    from anime_episode.config import get_settings
+
+    settings = get_settings()
+    worker = Worker(
+        queue=get_queue(),
+        store=get_store(),
+        runner=get_runner(),
+        chain=settings.worker_chain,
+        concurrency=1,
+    )
     processed = 0
     for _ in range(max(1, max_jobs)):
         job = await get_queue().dequeue()
         if job is None:
             break
-        # Re-enqueue semantics: dequeue already marked running; dispatch via worker internals
-        from datetime import datetime, timezone
-
-        from anime_episode.domain.enums import JobStatus
-
-        try:
-            result = await worker._dispatch(job.type, job.episode_id, job.shot_id, job.payload)
-            job.status = JobStatus.SUCCEEDED
-            job.result = result
-            job.finished_at = datetime.now(timezone.utc)
-        except Exception as exc:  # noqa: BLE001
-            job.status = JobStatus.FAILED
-            job.error = str(exc)
-            job.finished_at = datetime.now(timezone.utc)
-        await get_queue().update(job)
+        await worker.process_job(job)
         processed += 1
     return {"processed": processed}
+
+
+@router.get("/health/queue")
+async def queue_health() -> dict:
+    from anime_episode.config import get_settings
+
+    settings = get_settings()
+    queue = get_queue()
+    depth = await queue.depth() if hasattr(queue, "depth") else None
+    return {
+        "backend": settings.queue_backend,
+        "redis_url": settings.redis_url if settings.queue_backend == "redis" else None,
+        "depth": depth,
+        "worker_concurrency": settings.worker_concurrency,
+        "worker_chain": settings.worker_chain,
+    }

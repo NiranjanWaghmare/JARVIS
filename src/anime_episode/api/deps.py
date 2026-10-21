@@ -18,7 +18,11 @@ def get_store() -> ArtifactStore:
 @lru_cache
 def get_queue() -> JobQueue:
     settings = get_settings()
-    return build_queue(get_store(), backend=settings.queue_backend)
+    return build_queue(
+        get_store(),
+        backend=settings.queue_backend,
+        redis_url=settings.redis_url,
+    )
 
 
 @lru_cache
