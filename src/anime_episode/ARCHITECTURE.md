@@ -115,14 +115,34 @@ Worker process (async mode):
 uv run python -m anime_episode.worker_main
 ```
 
-## Extending to real GPUs
+## ComfyUI wiring (keyframes + motion)
 
-1. Set `ANIME_DRY_RUN=false`
-2. Start ComfyUI with AniSora / Wan2.2 workflows; point `ANIME_COMFYUI_BASE_URL`
-3. Drop workflow JSON into `workflows/` and finish `_load_workflow` wiring in tools
-4. Run GPT-SoVITS; set `ANIME_TTS_BASE_URL`
-5. Switch `ANIME_QUEUE_BACKEND=redis` once Redis adapter is implemented
-6. Scale `render_shot` workers horizontally (one GPU each)
+Bundled API-format templates:
+
+- `workflows/keyframe_animagine.json` — Animagine XL stills
+- `workflows/motion_wan_i2v.json` — Wan2.2 I2V (swap UNET names for AniSora)
+
+Injection uses `_meta.title` markers (`POSITIVE_PROMPT`, `LOAD_IMAGE`, …) so you can
+replace the JSON with your own ComfyUI **Save (API Format)** export without code changes.
+
+```bash
+export ANIME_DRY_RUN=false
+export ANIME_COMFYUI_BASE_URL=http://127.0.0.1:8188
+# optional overrides
+export ANIME_KEYFRAME_CKPT=animagine-xl-4.0.safetensors
+export ANIME_MOTION_UNET_HIGH=wan2.2_i2v_high_noise_14B_fp16.safetensors
+export ANIME_MOTION_UNET_LOW=wan2.2_i2v_low_noise_14B_fp16.safetensors
+curl -s localhost:8088/v1/health/comfyui
+```
+
+Motion path: upload keyframe → inject workflow → `/prompt` → poll history → download mp4.
+
+## Extending further
+
+1. Run GPT-SoVITS; set `ANIME_TTS_BASE_URL`
+2. Add `animate_wan.json` + wire `AnimateTool` the same way as motion
+3. Switch `ANIME_QUEUE_BACKEND=redis` once Redis adapter is implemented
+4. Scale `render_shot` workers horizontally (one GPU each)
 
 ## Design rules
 

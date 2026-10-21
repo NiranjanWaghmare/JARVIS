@@ -26,6 +26,40 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "anime_episode"}
 
 
+@router.get("/health/comfyui")
+async def comfyui_health() -> dict:
+    """Probe configured ComfyUI and list workflow template status."""
+    from anime_episode.config import get_settings
+    from anime_episode.tools.comfyui_client import ComfyUIClient
+    from anime_episode.tools.workflows import WORKFLOWS_DIR, load_workflow
+
+    settings = get_settings()
+    client = ComfyUIClient(settings.comfyui_base_url, settings.comfyui_timeout_s)
+    reachable = await client.health()
+    templates = {
+        settings.keyframe_workflow: (WORKFLOWS_DIR / settings.keyframe_workflow).exists(),
+        settings.motion_workflow: (WORKFLOWS_DIR / settings.motion_workflow).exists(),
+    }
+    load_errors: dict[str, str] = {}
+    for name, exists in templates.items():
+        if not exists:
+            continue
+        try:
+            load_workflow(name)
+        except Exception as exc:  # noqa: BLE001
+            load_errors[name] = str(exc)
+    return {
+        "comfyui_base_url": settings.comfyui_base_url,
+        "reachable": reachable,
+        "dry_run": settings.dry_run,
+        "workflows": templates,
+        "workflow_load_errors": load_errors,
+        "keyframe_ckpt": settings.keyframe_ckpt,
+        "motion_unet_high": settings.motion_unet_high,
+        "motion_unet_low": settings.motion_unet_low,
+    }
+
+
 @router.post("/episodes", response_model=CreateEpisodeResponse)
 async def create_episode(body: CreateEpisodeRequest) -> CreateEpisodeResponse:
     store = get_store()

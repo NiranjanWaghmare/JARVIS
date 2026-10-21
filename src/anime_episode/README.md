@@ -25,6 +25,17 @@ curl -s -X POST localhost:8088/v1/episodes/<EPISODE_ID>/kickoff \
   -d '{"sync":true}'
 ```
 
+## ComfyUI (real keyframes + motion)
+
+```bash
+export ANIME_DRY_RUN=false
+export ANIME_COMFYUI_BASE_URL=http://127.0.0.1:8188
+curl -s localhost:8088/v1/health/comfyui
+```
+
+Templates: `workflows/keyframe_animagine.json`, `workflows/motion_wan_i2v.json`.
+See `workflows/README.md` for model paths and how to swap AniSora weights.
+
 ## Tests
 
 ```bash
