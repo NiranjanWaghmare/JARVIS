@@ -4,7 +4,7 @@
 |---|---|---|
 | **Application code** (this pipeline) | **GitHub** — `NiranjanWaghmare/JARVIS` | Branch `cursor/anime-episode-architecture-aa56`, PR #1 |
 | **Package path** | Repo: `src/anime_episode/` | Not published to PyPI |
-| **Demo UI (HF Space)** | **Hugging Face Spaces** (Gradio dry-run) | Created via `scripts/deploy_hf_space.py` from `hf_space/` |
+| **Demo UI (HF Space)** | **Hugging Face Spaces** (Gradio dry-run) | https://huggingface.co/spaces/NiranjanWaghmare/anime-episode-generator |
 | **Model weights** | **Hugging Face Hub** (download into ComfyUI) | See [MODELS.md](./MODELS.md) |
 | **Artifacts** (episodes, clips) | Local disk `artifacts/anime_episodes/` | gitignored |
 
