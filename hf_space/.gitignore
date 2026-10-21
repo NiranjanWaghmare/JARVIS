@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# vendored at deploy time by scripts/deploy_hf_space.py
+anime_episode/
+SPACE_URL.txt

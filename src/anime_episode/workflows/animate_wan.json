@@ -1,0 +1,116 @@
+{
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "reference.png"
+    },
+    "_meta": { "title": "LOAD_IMAGE" }
+  },
+  "145": {
+    "class_type": "LoadVideo",
+    "inputs": {
+      "video": "driving.mp4"
+    },
+    "_meta": { "title": "LOAD_VIDEO" }
+  },
+  "12": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "_meta": { "title": "CLIP_LOADER" }
+  },
+  "14": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "_meta": { "title": "VAE_LOADER" }
+  },
+  "55": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "wan2.2_animate_14B_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": { "title": "UNET" }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "POSITIVE_PLACEHOLDER",
+      "clip": ["12", 0]
+    },
+    "_meta": { "title": "POSITIVE_PROMPT" }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "blurry, low quality, distorted face, identity drift, watermark",
+      "clip": ["12", 0]
+    },
+    "_meta": { "title": "NEGATIVE_PROMPT" }
+  },
+  "98": {
+    "class_type": "WanAnimateToVideo",
+    "inputs": {
+      "width": 640,
+      "height": 640,
+      "length": 81,
+      "batch_size": 1,
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "vae": ["14", 0],
+      "reference_image": ["10", 0],
+      "video": ["145", 0]
+    },
+    "_meta": {
+      "title": "VIDEO_LATENT",
+      "note": "Skeleton for marker injection. Prefer exporting the official ComfyUI Wan2.2 Animate Move template (API format) and retitling LOAD_IMAGE / LOAD_VIDEO / POSITIVE_PROMPT / UNET / VIDEO_LATENT."
+    }
+  },
+  "57": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 6.0,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": ["55", 0],
+      "positive": ["98", 0],
+      "negative": ["98", 1],
+      "latent_image": ["98", 2]
+    },
+    "_meta": { "title": "SAMPLER" }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["57", 0],
+      "vae": ["14", 0]
+    },
+    "_meta": { "title": "VAE_DECODE" }
+  },
+  "9": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "fps": 16,
+      "images": ["8", 0]
+    },
+    "_meta": { "title": "CREATE_VIDEO" }
+  },
+  "277": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "filename_prefix": "anime_animate",
+      "format": "mp4",
+      "codec": "h264",
+      "video": ["9", 0]
+    },
+    "_meta": { "title": "SAVE_VIDEO" }
+  }
+}

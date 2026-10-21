@@ -37,6 +37,9 @@ memory/
 scratch/
 knowledge/user_preference.txt
 
+# anime episode pipeline artifacts
+artifacts/anime_episodes/
+
 # reference images (temporary)
 WhatsApp Image*.jpeg
 WhatsApp Image*.jpg
