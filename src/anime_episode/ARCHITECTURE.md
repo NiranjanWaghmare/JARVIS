@@ -137,12 +137,27 @@ curl -s localhost:8088/v1/health/comfyui
 
 Motion path: upload keyframe → inject workflow → `/prompt` → poll history → download mp4.
 
+## Animate + TTS + S2V
+
+```bash
+export ANIME_DRY_RUN=false
+export ANIME_COMFYUI_BASE_URL=http://127.0.0.1:8188
+export ANIME_TTS_BASE_URL=http://127.0.0.1:9880
+export ANIME_TTS_DEFAULT_REF_AUDIO=/path/to/ref.wav
+curl -s localhost:8088/v1/health/comfyui
+curl -s localhost:8088/v1/health/tts
+```
+
+- `animate_wan.json` — reference keyframe + driving motion → identity-locked clip
+- GPT-SoVITS `POST /tts` — dialogue WAV per shot
+- `dialogue_s2v.json` — keyframe + WAV → lip-synced talking clip
+
 ## Extending further
 
-1. Run GPT-SoVITS; set `ANIME_TTS_BASE_URL`
-2. Add `animate_wan.json` + wire `AnimateTool` the same way as motion
-3. Switch `ANIME_QUEUE_BACKEND=redis` once Redis adapter is implemented
-4. Scale `render_shot` workers horizontally (one GPU each)
+1. Replace bundled Animate/S2V skeletons with your full official ComfyUI API exports
+2. Switch `ANIME_QUEUE_BACKEND=redis` once Redis adapter is implemented
+3. Scale `render_shot` workers horizontally (one GPU each)
+4. Mux TTS audio into final S2V clips during assemble if SaveVideo is silent
 
 ## Design rules
 

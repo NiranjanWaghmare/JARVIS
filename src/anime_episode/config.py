@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     comfyui_timeout_s: int = 600
 
     tts_base_url: str = "http://127.0.0.1:9880"
+    tts_timeout_s: int = 180
+    tts_default_ref_audio: str | None = None
+    tts_default_prompt_text: str = ""
+    tts_text_lang: str = "en"
+    tts_prompt_lang: str = "en"
+    tts_speed: float = 1.0
     ffmpeg_bin: str = "ffmpeg"
 
     # Pipeline defaults (open-source stack)
@@ -47,16 +53,26 @@ class Settings(BaseSettings):
     # ComfyUI workflow files under workflows/
     keyframe_workflow: str = "keyframe_animagine.json"
     motion_workflow: str = "motion_wan_i2v.json"
+    animate_workflow: str = "animate_wan.json"
+    dialogue_workflow: str = "dialogue_s2v.json"
     keyframe_ckpt: str = "animagine-xl-4.0.safetensors"
     # Wan2.2 I2V MoE pair — swap for AniSora / AnimeGen weights when installed
     motion_unet_high: str = "wan2.2_i2v_high_noise_14B_fp16.safetensors"
     motion_unet_low: str = "wan2.2_i2v_low_noise_14B_fp16.safetensors"
+    animate_unet: str = "wan2.2_animate_14B_bf16.safetensors"
+    dialogue_unet: str = "wan2.2_s2v_14B_fp8_scaled.safetensors"
 
     keyframe_width: int = 832
     keyframe_height: int = 1216
     motion_width: int = 640
     motion_height: int = 640
     motion_length: int = 81  # Wan frames (4n+1); ~5s at 16fps
+    animate_width: int = 640
+    animate_height: int = 640
+    animate_length: int = 81
+    dialogue_width: int = 640
+    dialogue_height: int = 640
+    dialogue_length: int = 77  # S2V chunk size in official templates
     default_negative_prompt: str = (
         "lowres, bad anatomy, bad hands, text, error, missing fingers, "
         "extra digit, fewer digits, cropped, worst quality, low quality, blurry"

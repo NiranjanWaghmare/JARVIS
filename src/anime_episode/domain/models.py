@@ -31,6 +31,8 @@ class CharacterRef(BaseModel):
     name: str
     appearance: str
     voice_ref_path: str | None = None
+    voice_prompt_text: str | None = None  # transcript of the reference clip
+    voice_lang: str | None = None  # zh|en|ja|ko|yue
     sheet_paths: list[str] = Field(default_factory=list)
     lora_path: str | None = None
     ip_adapter_refs: list[str] = Field(default_factory=list)

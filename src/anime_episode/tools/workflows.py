@@ -15,7 +15,10 @@ WORKFLOWS_DIR = Path(__file__).resolve().parent.parent / "workflows"
 MARKER_POSITIVE = "POSITIVE_PROMPT"
 MARKER_NEGATIVE = "NEGATIVE_PROMPT"
 MARKER_LOAD_IMAGE = "LOAD_IMAGE"
+MARKER_LOAD_VIDEO = "LOAD_VIDEO"
+MARKER_LOAD_AUDIO = "LOAD_AUDIO"
 MARKER_CHECKPOINT = "CHECKPOINT"
+MARKER_UNET = "UNET"
 MARKER_UNET_HIGH = "UNET_HIGH"
 MARKER_UNET_LOW = "UNET_LOW"
 MARKER_CLIP = "CLIP_LOADER"
@@ -87,11 +90,38 @@ def inject_load_image(workflow: dict[str, Any], filename: str) -> dict[str, Any]
     return wf
 
 
+def inject_load_video(workflow: dict[str, Any], filename: str) -> dict[str, Any]:
+    wf = copy.deepcopy(workflow)
+    _, node = require_node(wf, MARKER_LOAD_VIDEO)
+    # Native LoadVideo uses `file` or `video` depending on ComfyUI version.
+    inputs = node.setdefault("inputs", {})
+    if "file" in inputs:
+        inputs["file"] = filename
+    else:
+        inputs["video"] = filename
+    return wf
+
+
+def inject_load_audio(workflow: dict[str, Any], filename: str) -> dict[str, Any]:
+    wf = copy.deepcopy(workflow)
+    _, node = require_node(wf, MARKER_LOAD_AUDIO)
+    set_input(node, "audio", filename)
+    return wf
+
+
 def inject_checkpoint(workflow: dict[str, Any], ckpt_name: str) -> dict[str, Any]:
     wf = copy.deepcopy(workflow)
     matches = find_nodes_by_title(wf, MARKER_CHECKPOINT)
     if matches:
         set_input(matches[0][1], "ckpt_name", ckpt_name)
+    return wf
+
+
+def inject_unet(workflow: dict[str, Any], unet_name: str) -> dict[str, Any]:
+    wf = copy.deepcopy(workflow)
+    matches = find_nodes_by_title(wf, MARKER_UNET)
+    if matches:
+        set_input(matches[0][1], "unet_name", unet_name)
     return wf
 
 
@@ -184,6 +214,55 @@ def prepare_motion_workflow(
     wf = inject_load_image(wf, image_filename)
     wf = inject_diffusion_pair(wf, high_noise=high_noise, low_noise=low_noise)
     wf = inject_latent_size(wf, width=width, height=height, length=length)
+    return inject_seed(wf, seed)
+
+
+def prepare_animate_workflow(
+    workflow: dict[str, Any],
+    *,
+    positive: str,
+    negative: str,
+    image_filename: str,
+    video_filename: str,
+    width: int,
+    height: int,
+    length: int,
+    unet_name: str | None = None,
+    seed: int | None = None,
+) -> dict[str, Any]:
+    """Wan2.2-Animate Move mode: reference image + driving video → identity-locked clip."""
+    wf = inject_text_prompts(workflow, positive=positive, negative=negative)
+    wf = inject_load_image(wf, image_filename)
+    wf = inject_load_video(wf, video_filename)
+    if unet_name:
+        wf = inject_unet(wf, unet_name)
+    wf = inject_latent_size(wf, width=width, height=height, length=length)
+    return inject_seed(wf, seed)
+
+
+def prepare_s2v_workflow(
+    workflow: dict[str, Any],
+    *,
+    positive: str,
+    negative: str,
+    image_filename: str,
+    audio_filename: str,
+    width: int,
+    height: int,
+    length: int | None = None,
+    unet_name: str | None = None,
+    seed: int | None = None,
+) -> dict[str, Any]:
+    """Wan2.2-S2V: reference image + dialogue audio → talking clip."""
+    wf = inject_text_prompts(workflow, positive=positive, negative=negative)
+    wf = inject_load_image(wf, image_filename)
+    wf = inject_load_audio(wf, audio_filename)
+    if unet_name:
+        wf = inject_unet(wf, unet_name)
+    if length is not None:
+        wf = inject_latent_size(wf, width=width, height=height, length=length)
+    else:
+        wf = inject_latent_size(wf, width=width, height=height)
     return inject_seed(wf, seed)
 
 

@@ -1,0 +1,128 @@
+{
+  "52": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "speaker.png"
+    },
+    "_meta": { "title": "LOAD_IMAGE" }
+  },
+  "58": {
+    "class_type": "LoadAudio",
+    "inputs": {
+      "audio": "dialogue.wav"
+    },
+    "_meta": { "title": "LOAD_AUDIO" }
+  },
+  "12": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "_meta": { "title": "CLIP_LOADER" }
+  },
+  "14": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "_meta": { "title": "VAE_LOADER" }
+  },
+  "55": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "wan2.2_s2v_14B_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": { "title": "UNET" }
+  },
+  "57": {
+    "class_type": "AudioEncoderLoader",
+    "inputs": {
+      "audio_encoder_name": "wav2vec2_large_english_fp16.safetensors"
+    },
+    "_meta": { "title": "AUDIO_ENCODER" }
+  },
+  "59": {
+    "class_type": "AudioEncoderEncode",
+    "inputs": {
+      "audio_encoder": ["57", 0],
+      "audio": ["58", 0]
+    },
+    "_meta": { "title": "AUDIO_ENCODE" }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "POSITIVE_PLACEHOLDER",
+      "clip": ["12", 0]
+    },
+    "_meta": { "title": "POSITIVE_PROMPT" }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "blurry lips, desync, static mouth, low quality, watermark",
+      "clip": ["12", 0]
+    },
+    "_meta": { "title": "NEGATIVE_PROMPT" }
+  },
+  "98": {
+    "class_type": "WanSoundImageToVideo",
+    "inputs": {
+      "width": 640,
+      "height": 640,
+      "length": 77,
+      "batch_size": 1,
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "vae": ["14", 0],
+      "audio": ["59", 0],
+      "start_image": ["52", 0]
+    },
+    "_meta": { "title": "VIDEO_LATENT" }
+  },
+  "44": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 6.0,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": ["55", 0],
+      "positive": ["98", 0],
+      "negative": ["98", 1],
+      "latent_image": ["98", 2]
+    },
+    "_meta": { "title": "SAMPLER" }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["44", 0],
+      "vae": ["14", 0]
+    },
+    "_meta": { "title": "VAE_DECODE" }
+  },
+  "9": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "fps": 16,
+      "images": ["8", 0]
+    },
+    "_meta": { "title": "CREATE_VIDEO" }
+  },
+  "113": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "filename_prefix": "anime_s2v",
+      "format": "mp4",
+      "codec": "h264",
+      "video": ["9", 0]
+    },
+    "_meta": { "title": "SAVE_VIDEO" }
+  }
+}

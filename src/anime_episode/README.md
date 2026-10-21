@@ -25,16 +25,18 @@ curl -s -X POST localhost:8088/v1/episodes/<EPISODE_ID>/kickoff \
   -d '{"sync":true}'
 ```
 
-## ComfyUI (real keyframes + motion)
+## ComfyUI + TTS (live path)
 
 ```bash
 export ANIME_DRY_RUN=false
 export ANIME_COMFYUI_BASE_URL=http://127.0.0.1:8188
+export ANIME_TTS_BASE_URL=http://127.0.0.1:9880
+export ANIME_TTS_DEFAULT_REF_AUDIO=/path/to/ref.wav
 curl -s localhost:8088/v1/health/comfyui
+curl -s localhost:8088/v1/health/tts
 ```
 
-Templates: `workflows/keyframe_animagine.json`, `workflows/motion_wan_i2v.json`.
-See `workflows/README.md` for model paths and how to swap AniSora weights.
+Templates: keyframe, motion I2V, Wan-Animate, Wan-S2V — see `workflows/README.md`.
 
 ## Tests
 

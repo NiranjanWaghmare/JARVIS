@@ -43,16 +43,47 @@ class ComfyUIClient:
         subfolder: str = "",
     ) -> str:
         """Upload a local image; returns the filename ComfyUI stored under input/."""
+        return await self._upload(path, field="image", overwrite=overwrite, folder_type=image_type, subfolder=subfolder)
+
+    async def upload_video(
+        self,
+        path: str | Path,
+        *,
+        overwrite: bool = True,
+        subfolder: str = "",
+    ) -> str:
+        """Upload a driving video into ComfyUI's input folder."""
+        return await self._upload(path, field="image", overwrite=overwrite, folder_type="input", subfolder=subfolder)
+
+    async def upload_audio(
+        self,
+        path: str | Path,
+        *,
+        overwrite: bool = True,
+        subfolder: str = "",
+    ) -> str:
+        """Upload dialogue audio into ComfyUI's input folder for LoadAudio."""
+        return await self._upload(path, field="image", overwrite=overwrite, folder_type="input", subfolder=subfolder)
+
+    async def _upload(
+        self,
+        path: str | Path,
+        *,
+        field: str,
+        overwrite: bool,
+        folder_type: str,
+        subfolder: str,
+    ) -> str:
         path = Path(path)
         if not path.exists():
-            raise ComfyUIError(f"image not found: {path}")
+            raise ComfyUIError(f"file not found: {path}")
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         data = {
             "overwrite": "true" if overwrite else "false",
-            "type": image_type,
+            "type": folder_type,
             "subfolder": subfolder,
         }
-        files = {"image": (path.name, path.read_bytes(), mime)}
+        files = {field: (path.name, path.read_bytes(), mime)}
         async with httpx.AsyncClient(timeout=self.timeout_s) as client:
             r = await client.post(f"{self.base_url}/upload/image", data=data, files=files)
             r.raise_for_status()

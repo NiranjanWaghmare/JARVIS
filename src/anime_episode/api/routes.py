@@ -39,6 +39,8 @@ async def comfyui_health() -> dict:
     templates = {
         settings.keyframe_workflow: (WORKFLOWS_DIR / settings.keyframe_workflow).exists(),
         settings.motion_workflow: (WORKFLOWS_DIR / settings.motion_workflow).exists(),
+        settings.animate_workflow: (WORKFLOWS_DIR / settings.animate_workflow).exists(),
+        settings.dialogue_workflow: (WORKFLOWS_DIR / settings.dialogue_workflow).exists(),
     }
     load_errors: dict[str, str] = {}
     for name, exists in templates.items():
@@ -57,6 +59,27 @@ async def comfyui_health() -> dict:
         "keyframe_ckpt": settings.keyframe_ckpt,
         "motion_unet_high": settings.motion_unet_high,
         "motion_unet_low": settings.motion_unet_low,
+        "animate_unet": settings.animate_unet,
+        "dialogue_unet": settings.dialogue_unet,
+    }
+
+
+@router.get("/health/tts")
+async def tts_health() -> dict:
+    """Probe GPT-SoVITS api_v2 endpoint."""
+    from anime_episode.config import get_settings
+    from anime_episode.tools.tts_client import GPTSoVITSClient
+
+    settings = get_settings()
+    client = GPTSoVITSClient(settings.tts_base_url, settings.tts_timeout_s)
+    reachable = await client.health()
+    return {
+        "tts_base_url": settings.tts_base_url,
+        "reachable": reachable,
+        "dry_run": settings.dry_run,
+        "model": settings.tts_model,
+        "default_ref_audio_set": bool(settings.tts_default_ref_audio),
+        "text_lang": settings.tts_text_lang,
     }
 
 
