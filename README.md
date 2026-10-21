@@ -5,9 +5,10 @@ A fully local, voice-first AI companion running on Apple Silicon. Persona switch
 ### Anime episode generator (new)
 
 Story → ~10 min open-source anime video pipeline lives in
-[`src/anime_episode/`](src/anime_episode/) — FastAPI + job queue + ComfyUI/TTS tool adapters
-(AniSora / Wan2.2 / GPT-SoVITS). See
-[`src/anime_episode/ARCHITECTURE.md`](src/anime_episode/ARCHITECTURE.md).
+[`src/anime_episode/`](src/anime_episode/) on **this GitHub repo** (not Hugging Face).
+HF is only for downloading model weights into ComfyUI — see
+[`WHERE.md`](src/anime_episode/WHERE.md) and [`MODELS.md`](src/anime_episode/MODELS.md).
+Architecture: [`ARCHITECTURE.md`](src/anime_episode/ARCHITECTURE.md).
 
 ---
 

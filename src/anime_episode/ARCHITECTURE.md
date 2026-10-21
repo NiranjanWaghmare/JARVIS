@@ -4,6 +4,10 @@ Turn a rough story into a ~10-minute anime episode by orchestrating open-source
 models as **tools** behind a job queue. No single model generates the full
 episode; the system plans shots, renders them independently, then assembles.
 
+**Code lives on GitHub** (`src/anime_episode/`). **Model weights live on Hugging Face**
+and are downloaded into ComfyUI / GPT-SoVITS — see [WHERE.md](./WHERE.md) and
+[MODELS.md](./MODELS.md).
+
 ## Stack (defaults)
 
 | Stage | Tool | Model / backend |

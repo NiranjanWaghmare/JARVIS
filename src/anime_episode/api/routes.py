@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException
 
 from anime_episode.api.deps import get_queue, get_runner, get_store
 from anime_episode.api.schemas import (
+    CharacterVoiceStatusResponse,
     CreateEpisodeRequest,
     CreateEpisodeResponse,
     EpisodeStatusResponse,
     JobStatusResponse,
     KickoffRequest,
     KickoffResponse,
+    UpdateCharacterRequest,
     shot_status,
 )
 from anime_episode.domain.enums import JobType, ShotStage
@@ -118,6 +120,94 @@ async def get_episode(episode_id: str) -> EpisodeStatusResponse:
         scenes=episode.scenes,
         shots=[shot_status(s) for s in episode.shots],
     )
+
+
+@router.get(
+    "/episodes/{episode_id}/characters/voice-status",
+    response_model=CharacterVoiceStatusResponse,
+)
+async def character_voice_status(episode_id: str) -> CharacterVoiceStatusResponse:
+    from anime_episode.tools.character_assets import voice_readiness
+
+    store = get_store()
+    try:
+        episode = store.load_episode(episode_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="episode not found") from exc
+    status = voice_readiness(episode)
+    return CharacterVoiceStatusResponse(episode_id=episode_id, characters=episode.characters, **status)
+
+
+@router.patch("/episodes/{episode_id}/characters/{character_id}")
+async def update_character(
+    episode_id: str,
+    character_id: str,
+    body: UpdateCharacterRequest,
+) -> dict:
+    from anime_episode.tools.character_assets import update_character_in_episode
+
+    store = get_store()
+    try:
+        episode = store.load_episode(episode_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="episode not found") from exc
+    if not any(c.id == character_id for c in episode.characters):
+        raise HTTPException(status_code=404, detail="character not found")
+
+    fields = body.model_dump(exclude_unset=True)
+
+    def _mutate(ep) -> None:
+        update_character_in_episode(ep, character_id, **fields)
+
+    episode = store.mutate_episode(episode_id, _mutate)
+    char = next(c for c in episode.characters if c.id == character_id)
+    return {"episode_id": episode_id, "character": char.model_dump()}
+
+
+@router.post("/episodes/{episode_id}/characters/{character_id}/voice")
+async def upload_character_voice(
+    episode_id: str,
+    character_id: str,
+    prompt_text: str = "",
+    lang: str = "en",
+    file_path: str | None = None,
+) -> dict:
+    """Attach a voice reference WAV already on disk (absolute path on the server)."""
+    from pathlib import Path
+
+    from anime_episode.tools.character_assets import install_voice_ref
+
+    if not file_path:
+        raise HTTPException(
+            status_code=400,
+            detail="file_path is required (absolute path to a WAV/MP3 on the server)",
+        )
+    if not Path(file_path).exists():
+        raise HTTPException(status_code=400, detail=f"voice file not found: {file_path}")
+
+    store = get_store()
+    try:
+        episode = store.load_episode(episode_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="episode not found") from exc
+    if not any(c.id == character_id for c in episode.characters):
+        raise HTTPException(status_code=404, detail="character not found")
+
+    artifact_dir = str(store.episode_dir(episode_id))
+
+    def _mutate(ep) -> None:
+        char = next(c for c in ep.characters if c.id == character_id)
+        install_voice_ref(
+            artifact_dir=artifact_dir,
+            character=char,
+            source_path=file_path,
+            prompt_text=prompt_text or None,
+            lang=lang,
+        )
+
+    episode = store.mutate_episode(episode_id, _mutate)
+    char = next(c for c in episode.characters if c.id == character_id)
+    return {"episode_id": episode_id, "character": char.model_dump()}
 
 
 @router.post("/episodes/{episode_id}/kickoff", response_model=KickoffResponse)

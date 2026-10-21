@@ -75,6 +75,7 @@ class PipelineRunner:
             self._ctx(episode_id),
         )
         episode = out.episode
+        self.store.dump_meta(episode_id, "voice_status", out.voice_status)
         episode.touch()
         self.store.save_episode(episode)
         return episode

@@ -71,6 +71,23 @@ class JobStatusResponse(BaseModel):
     result: dict = Field(default_factory=dict)
 
 
+class UpdateCharacterRequest(BaseModel):
+    appearance: str | None = None
+    voice_ref_path: str | None = None
+    voice_prompt_text: str | None = None
+    voice_lang: str | None = None
+    lora_path: str | None = None
+
+
+class CharacterVoiceStatusResponse(BaseModel):
+    episode_id: str
+    dialogue_shot_count: int
+    characters_with_voice: list[str]
+    characters_missing_voice: list[str]
+    ok_for_dialogue: bool
+    characters: list[CharacterRef] = Field(default_factory=list)
+
+
 def shot_status(shot: Shot) -> ShotStatus:
     return ShotStatus(
         id=shot.id,

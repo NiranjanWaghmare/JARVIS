@@ -2,7 +2,14 @@
 
 Open-source **story → ~10 min anime episode** pipeline architecture.
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full tool/queue design.
+- **Code:** GitHub (`src/anime_episode/` in this repo) — see [WHERE.md](./WHERE.md)
+- **Weights:** Hugging Face → local ComfyUI / GPT-SoVITS — see [MODELS.md](./MODELS.md)
+- **Design:** [ARCHITECTURE.md](./ARCHITECTURE.md)
+
+```bash
+PYTHONPATH=src python -m anime_episode.smoke_check
+```
+
 
 ## Quick start (dry-run, no GPU)
 

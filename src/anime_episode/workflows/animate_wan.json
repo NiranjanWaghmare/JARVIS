@@ -63,11 +63,13 @@
       "positive": ["6", 0],
       "negative": ["7", 0],
       "vae": ["14", 0],
-      "clip_vision_output": ["10", 0],
       "reference_image": ["10", 0],
-      "pose_video": ["145", 0]
+      "video": ["145", 0]
     },
-    "_meta": { "title": "VIDEO_LATENT" }
+    "_meta": {
+      "title": "VIDEO_LATENT",
+      "note": "Skeleton for marker injection. Prefer exporting the official ComfyUI Wan2.2 Animate Move template (API format) and retitling LOAD_IMAGE / LOAD_VIDEO / POSITIVE_PROMPT / UNET / VIDEO_LATENT."
+    }
   },
   "57": {
     "class_type": "KSampler",
