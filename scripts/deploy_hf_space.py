@@ -77,12 +77,23 @@ def main() -> int:
         # Free accounts may need ZeroGPU / PRO for Gradio Spaces (HTTP 402).
         print(f"create_repo note: {exc}")
 
+    # Prefer ZeroGPU for short Wan clips (full episodes still need a dedicated GPU).
+    hardware = os.environ.get("HF_SPACE_HARDWARE", "zero-a10g")
+    try:
+        from huggingface_hub import SpaceHardware
+
+        hw = SpaceHardware(hardware)
+        api.request_space_hardware(repo_id=space_id, hardware=hw)
+        print(f"Requested hardware: {hardware}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"request_space_hardware note: {exc}")
+
     api.upload_folder(
         folder_path=str(SPACE_DIR),
         repo_id=space_id,
         repo_type="space",
-        commit_message="Deploy anime episode generator Space",
-        ignore_patterns=["**/__pycache__/**", "**/*.pyc"],
+        commit_message="Deploy ZeroGPU Wan short-clip Space",
+        ignore_patterns=["**/__pycache__/**", "**/*.pyc", "SPACE_URL.txt"],
     )
     url = f"https://huggingface.co/spaces/{space_id}"
     print(f"Deployed: {url}")

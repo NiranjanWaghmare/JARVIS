@@ -1,4 +1,4 @@
-# Deploy this Gradio app to Hugging Face Spaces
+# Deploy this Gradio app to Hugging Face Spaces (ZeroGPU)
 
 ```bash
 # 1) Token with write access: https://huggingface.co/settings/tokens
@@ -15,10 +15,13 @@ python3 scripts/deploy_hf_space.py
 The script:
 1. Copies `src/anime_episode` into `hf_space/anime_episode`
 2. Creates the Space (Gradio SDK) if needed
-3. Uploads `hf_space/` to `https://huggingface.co/spaces/<HF_SPACE_ID>`
+3. Sets hardware to **`zero-a10g`** (ZeroGPU)
+4. Uploads `hf_space/` to `https://huggingface.co/spaces/<HF_SPACE_ID>`
 
 ### Notes
 
-- Space runs **dry-run** (CPU). Full GPU video needs ComfyUI + weights on a GPU host.
-- Creating Gradio Spaces may require a HF PRO plan or ZeroGPU — if `create_repo` returns HTTP 402, enable billing / ZeroGPU and retry.
-- After deploy, open the Space URL printed by the script (also written to `hf_space/SPACE_URL.txt`).
+- **Short clips** use Wan2.2 TI2V on ZeroGPU (`@spaces.GPU`, ~60–180s reservation).
+- **Full ~10 min episodes** need a dedicated GPU host + ComfyUI weights (`MODELS.md`).
+- Free accounts in good standing can host a limited number of ZeroGPU Spaces; PRO raises host + quota limits.
+- First build downloads Wan weights (~tens of GB) and can take a while before the Space is READY.
+- Creating Gradio Spaces may return HTTP 402 if the account cannot host that hardware — enable ZeroGPU eligibility / PRO and retry.
