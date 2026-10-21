@@ -3,7 +3,8 @@
 Open-source **story → ~10 min anime episode** pipeline architecture.
 
 - **Code:** GitHub (`src/anime_episode/` in this repo) — see [WHERE.md](./WHERE.md)
-- **Weights:** Hugging Face → local ComfyUI / GPT-SoVITS — see [MODELS.md](./MODELS.md)
+- **Demo Space:** Gradio on HF Spaces — `hf_space/` + `scripts/deploy_hf_space.py`
+- **Weights:** Hugging Face Hub → local ComfyUI / GPT-SoVITS — see [MODELS.md](./MODELS.md)
 - **Design:** [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ```bash
