@@ -2,6 +2,13 @@
 
 A fully local, voice-first AI companion running on Apple Silicon. Persona switching, Piper TTS with speaker embeddings, streaming speech-to-text, wake-word detection, multi-agent research, and a Siri-style overlay HUD. **No cloud dependency for core features.**
 
+### Anime episode generator (new)
+
+Story → ~10 min open-source anime video pipeline lives in
+[`src/anime_episode/`](src/anime_episode/) — FastAPI + job queue + ComfyUI/TTS tool adapters
+(AniSora / Wan2.2 / GPT-SoVITS). See
+[`src/anime_episode/ARCHITECTURE.md`](src/anime_episode/ARCHITECTURE.md).
+
 ---
 
 ## Architecture

@@ -20,6 +20,18 @@ dependencies = [
 voice = [
     "SpeechRecognition>=3.14.0",
 ]
+anime = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.4.0",
+    "litellm>=1.50.0",
+]
+anime-dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
 
 [project.scripts]
 my_log_agent = "my_log_agent.main:run"
@@ -27,10 +39,20 @@ run_crew = "my_log_agent.main:run"
 train = "my_log_agent.main:train"
 replay = "my_log_agent.main:replay"
 test = "my_log_agent.main:test"
+anime-episode-api = "anime_episode.main:run"
+anime-episode-worker = "anime_episode.worker_main:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/my_log_agent", "src/anime_episode"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["src/anime_episode/tests"]
+asyncio_mode = "auto"
 
 [tool.crewai]
 type = "crew"

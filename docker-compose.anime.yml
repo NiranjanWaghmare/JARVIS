@@ -1,0 +1,48 @@
+# Optional stack for the anime episode pipeline.
+# GPU ComfyUI is left as an external service you point ANIME_COMFYUI_BASE_URL at.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.anime
+    command: uvicorn anime_episode.main:app --host 0.0.0.0 --port 8088
+    environment:
+      ANIME_DRY_RUN: "true"
+      ANIME_REDIS_URL: redis://redis:6379/0
+      ANIME_QUEUE_BACKEND: memory
+      ANIME_ARTIFACT_ROOT: /data/artifacts
+      ANIME_COMFYUI_BASE_URL: ${ANIME_COMFYUI_BASE_URL:-http://host.docker.internal:8188}
+      ANIME_TTS_BASE_URL: ${ANIME_TTS_BASE_URL:-http://host.docker.internal:9880}
+    ports:
+      - "8088:8088"
+    volumes:
+      - anime_artifacts:/data/artifacts
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.anime
+    command: python -m anime_episode.worker_main
+    environment:
+      ANIME_DRY_RUN: "true"
+      ANIME_REDIS_URL: redis://redis:6379/0
+      ANIME_QUEUE_BACKEND: memory
+      ANIME_ARTIFACT_ROOT: /data/artifacts
+      ANIME_COMFYUI_BASE_URL: ${ANIME_COMFYUI_BASE_URL:-http://host.docker.internal:8188}
+      ANIME_TTS_BASE_URL: ${ANIME_TTS_BASE_URL:-http://host.docker.internal:9880}
+    volumes:
+      - anime_artifacts:/data/artifacts
+    depends_on:
+      - redis
+      - api
+
+volumes:
+  anime_artifacts:
